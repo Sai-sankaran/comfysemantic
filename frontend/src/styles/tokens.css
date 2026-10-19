@@ -1,0 +1,260 @@
+/* ==========================================================================
+   ComfyPanel Studio — design tokens (single source of truth)
+   Imported once from the entry point. Screens must not define their own
+   palettes. Legacy aliases keep pre-refactor rules working until they are
+   migrated; new code uses the canonical names below.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- backgrounds ---- */
+  --bg: #0a0a0b;
+  --surface: #141416;
+  --surface-raised: #1b1b1f;
+  --surface-inset: #100f12;
+
+  /* ---- borders ---- */
+  --border: #26262a;
+  --border-strong: #3a3a40;
+  --border-focus: #8f8f98;
+  --border-hover: #5a5a62;
+
+  /* ---- text ---- */
+  --text: #e8e8ea;
+  --text-muted: #a3a3ac;
+  --text-faint: #6b6b74;
+  --text-inverse: #0a0a0b;
+
+  /* ---- status (sparingly; never color-only) ---- */
+  --success: #9ccb9c;
+  --success-bg: #16221a;
+  --warning: #d8b77a;
+  --warning-bg: #241f12;
+  --danger: #e08a8a;
+  --danger-bg: #2a1416;
+  --info: #9cb8d8;
+  --info-bg: #151d29;
+
+  /* ---- interactive ---- */
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.11);
+  --selected: rgba(255, 255, 255, 0.16);
+  --disabled-opacity: 0.45;
+
+  /* ---- layout ---- */
+  --layout-sidebar: 200px;
+  --layout-sidebar-collapsed: 56px;
+  --layout-topbar: 44px;
+  --layout-inspector: 340px;
+  --layout-gutter: 16px;
+
+  /* ---- spacing ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ---- density (D-16): control height, row height, gaps between items ----
+     `comfortable` is the default; the compact/spacious blocks at the end of
+     this file override these five values. Density never changes font size. */
+  --control-pad-y: 5px;
+  --control-h: 30px;
+  --row-h: 32px;
+  --row-pad-y: 4px;
+  --row-pad-y-tight: 3px;
+  --row-gap: 8px;
+
+  /* ---- radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  /* VIS-06: checkboxes are the one control with a 3 px corner. */
+  --radius-checkbox: 3px;
+
+  /* ---- shadows ---- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 18px rgba(0, 0, 0, 0.5);
+
+  /* ---- typography ---- */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* Text scale (D-16 / NAV-08): a multiplier rather than a redefined px value,
+     so one setting flows through every size token. Applied from the
+     `text_scale` preference in app/providers.tsx. */
+  --text-scale: 1;
+  --fs-2xs: calc(11px * var(--text-scale));
+  --fs-xs: calc(12px * var(--text-scale));
+  --fs-sm: calc(13px * var(--text-scale));
+  --fs-md: calc(14px * var(--text-scale));
+  --fs-lg: calc(18px * var(--text-scale));
+  --fs-xl: calc(24px * var(--text-scale));
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-tight: 1.25;
+  --lh-normal: 1.5;
+
+  /* ---- motion ---- */
+  --motion-fast: 120ms;
+  --motion-base: 160ms;
+  --motion-slow: 220ms;
+
+  /* ---- legacy aliases (pre-refactor rules; migrate, do not extend) ---- */
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--surface);
+  --bg-tertiary: var(--surface-raised);
+  --bg-card: var(--surface);
+  --bg-card-hover: var(--surface-raised);
+  --border-subtle: var(--border);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-muted);
+  --fg: var(--text);
+  --fg-dim: var(--text-muted);
+  --fg-faint: var(--text-faint);
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+  --ok: var(--text);
+  --warn: var(--warning);
+  --bad: #ffffff;
+  --bad-bg: var(--danger-bg);
+  --radius: var(--radius-sm);
+  --mono: var(--font-mono);
+  --sans: var(--font-sans);
+  --status-ready: #ffffff;
+  --status-pending: var(--text-faint);
+  --status-error: var(--danger);
+  --sidebar-width: var(--layout-sidebar);
+  --header-height: var(--layout-topbar);
+  --accent-gray: var(--border-strong);
+  --accent-border: var(--border-strong);
+}
+
+/* ==========================================================================
+   Themes (design D-14). Dark is the default (:root above). These blocks
+   override only palette tokens; every rule elsewhere reads the tokens, so the
+   whole app recolours with no per-component change. Adding the theme is
+   `document.documentElement.dataset.theme = '<name>'` (app/providers.tsx).
+
+   The selector deliberately matches *any* element carrying `[data-theme]`, not
+   only `:root`, so the component gallery (CTL-06) can render a theme matrix on
+   one page by putting the attribute on a pane. Nothing else sets it.
+   ========================================================================== */
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f5f5f6;
+  --surface: #ffffff;
+  --surface-raised: #eeeef0;
+  --surface-inset: #e9e9eb;
+
+  --border: #d7d7db;
+  --border-strong: #b2b2bb;
+  --border-focus: #3b3b43;
+  --border-hover: #b2b2bb;
+
+  --text: #17171a;
+  --text-muted: #55555e;
+  --text-faint: #7c7c86;
+  --text-inverse: #ffffff;
+
+  --success: #2f6b3a;
+  --success-bg: #e3f1e6;
+  --warning: #7a5b16;
+  --warning-bg: #f7efd9;
+  --danger: #9a333c;
+  --danger-bg: #fbe6e8;
+  --info: #2c4b73;
+  --info-bg: #e6eef8;
+
+  --hover: rgba(0, 0, 0, 0.045);
+  --active: rgba(0, 0, 0, 0.08);
+  --selected: rgba(0, 0, 0, 0.13);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.10);
+  --shadow-2: 0 4px 18px rgba(0, 0, 0, 0.16);
+}
+
+[data-theme='high-contrast'] {
+  color-scheme: dark;
+
+  --bg: #000000;
+  --surface: #000000;
+  --surface-raised: #0b0b0b;
+  --surface-inset: #000000;
+
+  --border: #ffffff;
+  --border-strong: #ffffff;
+  --border-focus: #ffe14d;
+  --border-hover: #ffffff;
+
+  --text: #ffffff;
+  --text-muted: #e6e6e6;
+  --text-faint: #cfcfcf;
+  --text-inverse: #000000;
+
+  --success: #7dff8a;
+  --success-bg: #002200;
+  --warning: #ffe14d;
+  --warning-bg: #2a2200;
+  --danger: #ff9a9a;
+  --danger-bg: #2a0000;
+  --info: #9fd0ff;
+  --info-bg: #001a2a;
+
+  --hover: rgba(255, 255, 255, 0.18);
+  --active: rgba(255, 255, 255, 0.30);
+  --selected: rgba(255, 255, 255, 0.42);
+
+  --shadow-1: 0 0 0 1px #ffffff;
+  --shadow-2: 0 0 0 2px #ffffff;
+}
+
+/* ==========================================================================
+   Density (D-16). Density changes control height, row height and the gaps
+   between items - never font size or information architecture. `comfortable`
+   is the default (the :root values above), so only the other two levels need
+   an override block. Applied from the `density` preference in
+   app/providers.tsx (root element `data-density`). Like the themes, the
+   selector matches any element, so the component gallery can show all three
+   densities side by side.
+   ========================================================================== */
+
+[data-density='compact'] {
+  --control-pad-y: 3px;
+  --control-h: 26px;
+  --row-h: 28px;
+  --row-pad-y: 2px;
+  --row-pad-y-tight: 1px;
+  --row-gap: 6px;
+}
+
+[data-density='spacious'] {
+  --control-pad-y: 7px;
+  --control-h: 36px;
+  --row-h: 40px;
+  --row-pad-y: 6px;
+  --row-pad-y-tight: 5px;
+  --row-gap: 10px;
+}
+
+/* ==========================================================================
+   Component-gallery helpers (CTL-06). The text scale is a multiplier that the
+   `--fs-*` tokens bake in at `:root`, so a nested preview pane must re-declare
+   the type tokens to scale on its own. This block is the only place that
+   duplicates them, and only for the gallery fixture.
+   ========================================================================== */
+
+.gallery-scale {
+  --fs-2xs: calc(11px * var(--text-scale));
+  --fs-xs: calc(12px * var(--text-scale));
+  --fs-sm: calc(13px * var(--text-scale));
+  --fs-md: calc(14px * var(--text-scale));
+  --fs-lg: calc(18px * var(--text-scale));
+  --fs-xl: calc(24px * var(--text-scale));
+}

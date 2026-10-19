@@ -1,0 +1,200 @@
+/**
+ * The screen gallery's own chrome (design `VIS-*` for the harness, not the app).
+ *
+ * Animations are disabled outright. A screenshot taken mid-transition is a
+ * screenshot of a state the application is never actually in, and a fade that has
+ * not finished is indistinguishable from a fade that is broken.
+ */
+@keyframes none {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+#root,
+.screens-index,
+.screen-detail {
+  animation: none !important;
+  transition: none !important;
+}
+
+.screens-index,
+.screen-detail {
+  min-height: 100vh;
+  background: var(--bg, #0a0a0b);
+  color: var(--text, #e8e8ea);
+}
+
+.screens-head {
+  padding: 20px 24px 8px;
+  border-bottom: 1px solid var(--border-subtle, #26262a);
+}
+.screens-head h1 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+.screens-head p {
+  margin: 0 0 6px;
+  max-width: 90ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted, #9a9aa2);
+}
+.screens-head .hint {
+  font-size: 12px;
+}
+.screens-head.compact {
+  padding: 12px 24px;
+}
+
+.screens-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 24px;
+  font-size: 12px;
+  background: var(--surface-inset, #111113);
+  border-bottom: 1px solid var(--border-subtle, #26262a);
+}
+.screens-toolbar label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.screens-toolbar input[type='range'] {
+  width: 110px;
+}
+.screens-toolbar input[type='number'] {
+  width: 70px;
+}
+.screens-toolbar button {
+  padding: 3px 10px;
+  color: inherit;
+  background: #1c1c20;
+  border: 1px solid #34343c;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.screens-toolbar button:hover {
+  background: #26262c;
+}
+
+.screens-area {
+  padding: 14px 24px;
+}
+.screens-area h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #9a9aa2);
+}
+
+.screens-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.screen-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 11px;
+  color: inherit;
+  text-decoration: none;
+  background: #131317;
+  border: 1px solid #26262a;
+  border-radius: 6px;
+}
+.screen-tile:hover {
+  border-color: #4a4a55;
+  background: #17171c;
+}
+.screen-tile.placeholder {
+  opacity: 0.55;
+  border-style: dashed;
+  cursor: default;
+}
+.screen-tile-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+.screen-tile-reqs {
+  font-size: 11px;
+  color: var(--text-muted, #9a9aa2);
+}
+
+.screen-tag {
+  align-self: flex-start;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+}
+.screen-tag.ok {
+  color: #7ee0a8;
+  background: rgba(60, 160, 110, 0.18);
+}
+.screen-tag.warn {
+  color: #e8c07e;
+  background: rgba(190, 140, 50, 0.18);
+}
+.screen-tag.muted {
+  color: #9a9aa2;
+  background: rgba(120, 120, 130, 0.16);
+}
+
+.frame-holder {
+  padding: 18px 24px;
+  overflow: auto;
+}
+
+/*
+ * The frame is sized, not scaled. A CSS transform would make
+ * getBoundingClientRect report the scaled box, so a screenshot of it would be a
+ * screenshot of a layout the application never had.
+ */
+.frame {
+  overflow: hidden;
+  background: #0a0a0b;
+  border: 1px solid #34343c;
+  border-radius: 6px;
+}
+
+.screen-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}
+.screen-placeholder h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.screen-placeholder p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted, #9a9aa2);
+}
+
+.frame-note {
+  padding: 0 24px 20px;
+  font-size: 11px;
+}
+.back {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-muted, #9a9aa2);
+}

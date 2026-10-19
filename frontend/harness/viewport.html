@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ComfyPanel Studio — fixed-viewport harness</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #050506; color: #e8e8ea;
+                   font: 12px system-ui, sans-serif; }
+      #chrome { padding: 4px 8px; background: #111113; border-bottom: 1px solid #26262a;
+                display: flex; gap: 12px; align-items: center; }
+      /* The frame is laid out at the exact requested width and height. No CSS
+         transform is applied, because a transform would change the
+         getBoundingClientRect() values the Workbench measures its canvas with -
+         and a scaled screenshot of a differently-laid-out page would not be a
+         screenshot of that layout at all. */
+      #frame { border: 0; display: block; background: #0a0a0b; }
+    </style>
+  </head>
+  <body>
+    <div id="chrome">
+      <strong>viewport harness</strong>
+      <span id="label"></span>
+      <span id="measured"></span>
+    </div>
+    <iframe id="frame" src="/harness/index.html"></iframe>
+    <script>
+      const q = new URLSearchParams(location.search);
+      const w = parseInt(q.get('w') || '1366', 10);
+      const h = parseInt(q.get('h') || '768', 10);
+      const frame = document.getElementById('frame');
+      frame.style.width = w + 'px';
+      frame.style.height = h + 'px';
+      document.getElementById('label').textContent =
+        'iframe viewport ' + w + ' x ' + h;
+      // Report what the app inside actually sees, so the screenshot cannot
+      // claim a size the layout did not have.
+      const report = () => {
+        try {
+          const d = frame.contentDocument;
+          const wv = frame.contentWindow;
+          document.getElementById('measured').textContent =
+            'inner ' + wv.innerWidth + ' x ' + wv.innerHeight +
+            ' · regions ' + d.querySelectorAll('.wb-region').length;
+        } catch (e) {
+          document.getElementById('measured').textContent = 'unavailable';
+        }
+      };
+      frame.addEventListener('load', () => setTimeout(report, 1200));
+      setInterval(report, 1500);
+    </script>
+  </body>
+</html>

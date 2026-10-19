@@ -1,0 +1,681 @@
+/* ==========================================================================
+   OCR Workbench — queue | canvas | region inspector
+
+   Layout follows the three-pane review model: the queue is a list of pages
+   still needing attention, the canvas is the page at working size, and the
+   inspector is everything known about one region.
+
+   Coordinate contract (the thing most easily got wrong here):
+   region coordinates are stored in ORIGINAL page pixels, while the canvas
+   displays the page scaled to fit. Every overlay therefore goes through
+   `scale = displayedWidth / naturalWidth`, computed in the component from the
+   rendered size, never from a hard-coded zoom percentage.
+   ========================================================================== */
+
+.wb {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr) 360px;
+  height: 100%;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+}
+
+.wb > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * Explicit column placement for all three panes.
+ *
+ * These panes used to rely on implicit auto-placement, which quietly depends on
+ * all three being present. The narrow layout hides the queue with `display:none`,
+ * and a `display:none` grid item is removed from the flow entirely - so the
+ * canvas slid into column 1, which is `0px` there, and the inspector took the
+ * `1fr`. The canvas collapsed to its 32px padding and the page image rendered at
+ * 0x0: the Workbench was unusable at exactly the width the narrow layout exists
+ * to serve.
+ *
+ * Naming the columns decouples placement from presence, so a pane can be hidden
+ * without the other two moving.
+ */
+.wb-queue { grid-column: 1; }
+.wb-canvas { grid-column: 2; }
+.wb-inspector { grid-column: 3; }
+
+/*
+ * Collapsing the inspector.
+ *
+ * The canvas is the part that cannot degrade, so at a narrow window the details
+ * column is the one that should give way. Unlike the queue this stays in the
+ * grid rather than overlaying: it holds no navigation the reviewer might be
+ * about to use, and an overlay here would cover the right-hand edge of the page
+ * where balloons frequently sit.
+ */
+.wb[data-inspector-open='false'] { grid-template-columns: 264px minmax(0, 1fr) 0; }
+.wb[data-inspector-open='false'] .wb-inspector { display: none; }
+
+/* ---------------------------------------------------------------- queue --- */
+
+.wb-queue {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.wb-queue-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.wb-queue-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wb-queue-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-queue-item:hover { background: var(--hover); color: var(--text); }
+
+.wb-queue-item[aria-current='true'] {
+  background: var(--selected);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.wb-queue-name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+.wb-queue-reason {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.wb-queue-done { color: var(--success); }
+
+/* --------------------------------------------------------------- canvas --- */
+
+.wb-canvas {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.wb-banners {
+  flex-shrink: 0;
+  min-height: 0;
+}
+
+.wb-banners .notice {
+  margin: var(--space-2);
+  max-width: calc(100% - 2 * var(--space-2));
+}
+
+.wb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.wb-toolbar-spacer { flex: 1; }
+
+.wb-stage {
+  flex: 1;
+  overflow: auto;
+  display: grid;
+  /*
+   * `safe` matters: with plain `center`, a page larger than the stage (any
+   * zoom above fit) overflows equally in all directions, and the top-left
+   * overflow is unreachable by scrolling — the first region would be clipped
+   * with no way to scroll to it. `safe` falls back to start-alignment once the
+   * content overflows, so every part of a zoomed page stays reachable.
+   */
+  place-items: safe center;
+  padding: var(--space-4);
+  /* The canvas is draggable; overlays and the editor are not. */
+  cursor: grab;
+  touch-action: none;
+}
+
+.wb-stage[data-panning] { cursor: grabbing; }
+/* Text selection while dragging a page is never what the reviewer meant. */
+.wb-stage[data-panning] * { user-select: none; }
+
+/*
+ * The page box is sized in pixels by the component, from the measured stage and
+ * the page's own dimensions, so its aspect ratio always equals the source
+ * page's and the <img> can never letterbox inside it.
+ *
+ * That is a correctness requirement, not a preference. Overlays are
+ * percentages of this box, so any letterboxing would slide every rectangle off
+ * its region - and a mis-placed overlay is worse than no overlay, because it
+ * looks authoritative. Do not reintroduce `max-height`/`object-fit` fitting
+ * here without re-deriving the overlay origin from the rendered image box.
+ */
+.wb-page {
+  position: relative;
+  flex: none;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-strong);
+  line-height: 0;
+}
+
+.wb-page img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.wb-page[data-overlays='off'] .wb-region { display: none; }
+
+/*
+ * Overlays are placed in percentages of the displayed box rather than pixels,
+ * so a zoom change or a resize cannot desynchronise a rectangle from the region
+ * it labels. Percentages resolve against the padding box, which is exactly the
+ * rendered image area because the <img> fills the box.
+ */
+.wb-region {
+  position: absolute;
+  border: 1.5px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  padding: 0;
+}
+
+.wb-region:hover { background: rgba(255, 255, 255, 0.14); }
+
+/*
+ * Selection is carried by three things at once - width, colour and a glow -
+ * because on a busy page a 1px difference in border weight is not something a
+ * reviewer can find at a glance, and a selected region that is hard to find is
+ * the same as not selected.
+ */
+.wb-region[data-selected='true'] {
+  border: 2.5px solid var(--text);
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85), 0 0 0 4px rgba(255, 255, 255, 0.22);
+  z-index: 2;
+}
+
+/*
+ * The region currently being edited is called out again on the canvas itself,
+ * not only in the inspector and the editor's heading. When the editor has to sit
+ * on top of a neighbour, this is the cue that says which balloon owns the text.
+ */
+.wb-region[data-editing] {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 2px var(--warning);
+  z-index: 3;
+}
+
+.wb-region:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+
+/*
+ * The recognised words, drawn over the region.
+ *
+ * The addendum's central requirement is that a reviewer can see which text
+ * belongs to which part of the page. It is an annotation laid over the image,
+ * never a repaint of it, and it stays inside the page box.
+ *
+ * Clamped rather than clipped: an unclamped label from a tall balloon would run
+ * off the page and over a neighbouring region, which reads as that region's
+ * text. The clamp shows the first words plus an ellipsis, and the full string
+ * is always available in the overlay's accessible name.
+ */
+.wb-region-text {
+  position: absolute;
+  inset: 0;
+  padding: 1px 3px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  font: var(--fs-xs) / 1.25 var(--font-sans);
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+  opacity: 0.65;
+  background: rgba(10, 10, 11, 0.35);
+  border-radius: 2px;
+}
+
+/* Selected region: unmistakable, high-contrast overlay. */
+.wb-region[data-selected='true'] .wb-region-text,
+.wb-region[data-editing] .wb-region-text {
+  opacity: 1;
+  background: rgba(10, 10, 11, 0.85);
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 1);
+}
+
+.wb-region[data-source='none'] .wb-region-text,
+.wb-region[data-source='none'] .wb-region-badge {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* Provenance marker. Paired with the word "manual", never colour alone. */
+.wb-region-badge {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  padding: 0 3px;
+  font: var(--fs-xs) var(--font-sans);
+  line-height: 1.3;
+  background: var(--text);
+  color: var(--text-inverse);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/*
+ * In-place editor.
+ *
+ * A separate layer from the region overlays rather than a replacement for the
+ * region it edits. That keeps the edited balloon visible and highlighted while
+ * its text is being changed - which is what makes the editor's position a
+ * preference rather than a correctness requirement - and it lets the position
+ * be chosen (above, below, left or right) instead of always landing on top of
+ * whatever happens to be next in reading order.
+ *
+ * `min-width` still exceeds the OCR box: that box is sized to the lettering and
+ * is routinely narrower than anything a person can type into, and a clipped
+ * caret makes correction impossible.
+ */
+.wb-region-editor {
+  position: absolute;
+  z-index: 6;
+  box-sizing: border-box;
+  /*
+   * Width and position are set inline from the measured editor and the chosen
+   * placement. There is deliberately no `min-width` here: the component already
+   * sizes the box, and a CSS minimum would silently override the cap that keeps
+   * a zoomed-out editor from being wider than the page it annotates.
+   */
+  padding: var(--space-2);
+  border: 2px solid var(--text);
+  border-radius: 3px;
+  background: rgba(10, 10, 11, 0.97);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  /*
+   * The panel is decoration; only the text field and its buttons are controls.
+   * Placement already keeps the editor off its neighbours where it can, and
+   * this stops the padding, border and heading from swallowing the clicks for
+   * the part it could not avoid covering.
+   */
+  pointer-events: none;
+}
+
+.wb-region-editor .wb-region-input,
+.wb-region-editor .wb-region-actions {
+  pointer-events: auto;
+}
+
+/*
+ * The edited region is highlighted twice over: a wide outline on the region
+ * itself and this heading on the editor. When no placement avoids covering a
+ * neighbour - which a dense page cannot always avoid - that is what tells the
+ * reviewer which balloon the text belongs to.
+ */
+.wb-editor-head {
+  display: block;
+  margin-bottom: var(--space-1);
+  font: var(--fs-xs) / 1.3 var(--font-sans);
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.wb-region-editor[data-collision] { border-color: var(--warning); }
+.wb-region-editor[data-collision] .wb-editor-head { color: var(--warning); }
+
+.wb-region-input {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  margin: 0;
+  padding: var(--space-1);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  color: var(--text);
+  font: var(--fs-sm) / var(--lh-normal) var(--font-sans);
+  resize: vertical;
+}
+
+.wb-region-input:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+
+.wb-region-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.wb-region-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* Zoom readout. A fixed minimum width stops the toolbar jittering as digits change. */
+.wb-zoom-level {
+  min-width: 44px;
+  text-align: center;
+  font: var(--fs-xs) / 1 var(--font-mono);
+  color: var(--text-faint);
+}
+
+/*
+ * Save / Discard / Stay bar.
+ *
+ * Deliberately a bar in the canvas footer rather than a modal: the reviewer must
+ * still see the region they are deciding about while they decide.
+ */
+.wb-guard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 2px solid var(--warning);
+  background: var(--warning-bg);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  flex-wrap: wrap;
+}
+
+/* Reading-order label, placed above the box where there is room. */
+.wb-region-tag {
+  position: absolute;
+  left: -1px;
+  top: -18px;
+  padding: 0 4px;
+  font: var(--fs-xs) var(--font-sans);
+  line-height: calc(18px * var(--text-scale));
+  background: var(--text);
+  color: var(--text-inverse);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Fallback when the region sits at the very top of the page. */
+.wb-region[data-tag-inside='true'] .wb-region-tag { top: 0; left: 0; }
+
+.wb-page-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------ inspector --- */
+
+.wb-inspector {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+}
+
+.wb-insp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.wb-insp-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+.wb-insp-section {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/*
+ * A correction that could not be confidently re-homed after a re-index. It
+ * needs to interrupt rather than blend in: the alternative is a reviewer
+ * trusting a correction that is sitting on the wrong balloon, which is exactly
+ * the failure the flag exists to prevent.
+ */
+.wb-reattach {
+  background: var(--warning-bg);
+  border-left: 2px solid var(--warning);
+  align-items: flex-start;
+}
+
+.wb-label {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/*
+ * The crop is drawn from the same source image with a scaled offset box rather
+ * than fetched as a separate asset. That keeps transcription honest - the crop
+ * is pixel-identical to the region on screen, and cannot silently disagree with
+ * it because it was generated at a different time.
+ */
+.wb-crop {
+  position: relative;
+  /* The box is sized in JS to the region's own aspect ratio so the whole crop
+     is visible. `max-width` only guards against the width budget in JS being
+     wrong about a fluid column - it must never be what decides the shape. */
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-inset);
+}
+
+.wb-crop img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+
+.wb-textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  padding: var(--space-2);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.wb-textarea:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+
+/*
+ * The effective transcript, shown in the inspector while the canvas holds the
+ * editor. A pending edit is marked with a rule and a word, not colour alone.
+ */
+.wb-effective {
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wb-effective[data-dirty] { border-left-color: var(--warning); }
+
+.wb-machine {
+  padding: var(--space-2);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wb-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.wb-row-end { justify-content: flex-end; }
+
+/* Success notices get no danger treatment; the toast must not look like an
+   error just because it is styled as a notice. */
+.wb-notice { border-left-color: var(--border-strong); }
+
+/*
+ * Key/value rows for the region details. The shared `.kv` class expects each
+ * pair wrapped in a `.kv-row` div; these are bare dt/dd siblings, so they get
+ * their own grid rather than silently rendering unstyled.
+ */
+.wb-kv {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) 1fr;
+  gap: 2px var(--space-2);
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+
+.wb-kv dt { color: var(--text-faint); }
+
+.wb-kv dd { margin: 0; overflow-wrap: anywhere; }
+
+/* -------------------------------------------------------------- ink badge -- */
+
+/*
+ * Unknown and mixed are drawn as a hatched swatch, never as a colour. Showing
+ * a tinted square for a measurement that was explicitly not obtained would
+ * contradict the rule the whole feature is built on: do not guess.
+ */
+.wb-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  flex: none;
+}
+
+.wb-swatch[data-unknown='true'] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--border-strong) 0,
+    var(--border-strong) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+.wb-ink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.wb-reliable {
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+/* ------------------------------------------------------------ narrow UI --- */
+
+/* Below 1100px the queue folds away rather than squeezing the canvas: the
+   canvas is the part that cannot degrade, the queue can be reopened. */
+@media (max-width: 1100px) {
+  .wb { position: relative; grid-template-columns: 0 minmax(0, 1fr) 320px; }
+
+  /*
+   * The queue becomes an overlay drawer instead of a column.
+   *
+   * As a third column it took 264px from a window that had ~780px of content
+   * left, leaving the page ~248px wide - too narrow to read OCR text against
+   * the lettering underneath, which defeats the point of showing the page at
+   * all. Overlaying keeps the canvas at full width and, because the canvas is
+   * laid out identically whether or not the drawer is open, closing it restores
+   * the previous layout exactly.
+   *
+   * No state lives in the drawer, so selection, zoom, pan and an in-progress
+   * draft all survive showing and hiding it.
+   */
+  .wb-queue {
+    display: none;
+    position: absolute;
+    top: 42px;
+    bottom: 0;
+    left: 0;
+    width: 264px;
+    z-index: 30;
+    box-shadow: 0 0 28px rgba(0, 0, 0, 0.65);
+  }
+
+  .wb[data-queue-open='true'] .wb-queue { display: flex; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-region { transition: none; }
+}
+
+.hint-block {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+}

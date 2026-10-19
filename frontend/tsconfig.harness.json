@@ -1,0 +1,32 @@
+{
+  // The visual harness.
+  //
+  // It has its own project because `tsconfig.app.json` covers only `src`, and a
+  // directory no compiler looks at is a directory with no guarantee: the Explore
+  // harness page shipped with type errors the build never saw. `references` keeps
+  // it in `tsc -b`, so the harness is checked by the same command as the app.
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    // Vite's client types declare `*.css` as side-effect imports, which the
+    // harness uses for the token, base and app stylesheets.
+    "types": ["vite/client"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["harness"]
+}
